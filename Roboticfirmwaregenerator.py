@@ -273,7 +273,7 @@ country = [{name: 'Afghanistan', code: 'AF'},
   {name: 'Zimbabwe', code: 'ZW'} 
 ]
 selectedcountry = [] #Getting the selected country 
-os_list = ['Linux ubuntu x64 x86','Linux Debian x64 x86','Linux ubuntu arm 32','Linux ubuntu arm 64'] #The list of the operaring system on the system 
+os_list = ['Linux Ubuntu x64 x86','Linux Debian x64 x86','Linux Ubuntu arm 32','Linux Debian arm 32','Linux Ubuntu arm 64','Linux Debian arm 64'] #The list of the operaring system on the system 
 osmem = []
 #Password = "Rkj3548123" #Find the way to popup and get the password using this part as login into the system 
 os.system("echo Hello"+"\t"+str(username)) #Getting the host name 
@@ -303,10 +303,10 @@ devices_list = extract_devices.split("wlo1")
 hostname_mem = [] #Getting the list of the devices host name 
 hostip_mem = [] #Getting the list of the devices host ip 
 automateip_add = {}
+hoste_selected =[]
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #Getting the wifi of the host 
 wifi_mem = []
-
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -385,8 +385,14 @@ class MainWindow(QtWidgets.QMainWindow):
                                              wifi_mem.remove(wifi_mem[wifilist]) #remove the len of the index if the length is over 
                      self.combo7.addItems([" "]) #Getting the blank list on the top to be able to choosing the data in the combobox later 
                      self.combo7.addItems(wifi_mem) #getting the list of wifi memory
+                     print(wifi_mem)
     def wifissid(self,wifi_index):
              print(wifi_mem[wifi_index])
+             if len(network_name) < len(wifi_mem):
+                   network_name.append(wifi_mem[wifi_index-1])  #Getting the wifi mem on the list of the network name to generate the wifi configuretion on sd card 
+             #if len(network_name) >1:
+             #      network_name.remove(network_name[0]) #remove the network name from the list if out of range 
+             print(network_name)      
     def hostip_data(self,hostip_index):
              print(hostip_mem[hostip_index-1])    
     def hostname_data(self,host_index):
@@ -459,7 +465,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   filewpa_supplicant.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev")
                                                   filewpa_supplicant.write("update_config=1")
                                                   filewpa_supplicant.write("network={")
-                                                  #filewpa_supplicant.write("ssid="+network_name)  #Getting the name of the network from the combobox list SSID password
+                                                  filewpa_supplicant.write("ssid="+network_name)  #Getting the name of the network from the combobox list SSID password
                                                   #filewpa_supplicant.write("psk="+network_password) #Getting the password from the text input 
                                                   filewpa_supplicant.write("}")  
                                                   print(namenetwork)
