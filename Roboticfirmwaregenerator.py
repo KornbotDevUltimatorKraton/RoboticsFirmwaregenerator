@@ -3,17 +3,21 @@
 #Author:Chanapai Chuadchum
 #Project:Auracore color controller GUI 
 #release date:25/2/2020
+from paramiko import SSHClient, AutoAddPolicy # SSH remote command to activate the host machine control
 from PyQt5 import QtCore, QtWidgets, uic,Qt,QtGui 
 from PyQt5.QtWidgets import QApplication,QTreeView,QDirModel,QFileSystemModel,QVBoxLayout, QTreeWidget,QStyledItemDelegate, QTreeWidgetItem,QLabel,QGridLayout,QLineEdit,QDial,QComboBox
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap,QIcon,QImage,QPalette,QBrush
 from pyqtgraph.Qt import QtCore, QtGui   #PyQt graph to control the model grphic loaded  
 import pyqtgraph.opengl as gl
+import subprocess # Getting the subprocess 
+import pandas as pd 
 import csv 
 import os 
 import sys 
 import json #Reading the json file from the input nodes 
 import getpass
+import pywifi 
 memwrite = [] #Getting the status of the writing process 
 OS_name = [] #Getting the operating system choosing for uploadinto the robot
 network_name = []
@@ -23,6 +27,7 @@ print(username)
 PATH_SD_CARD = "/media/"+str(username)   #Path of the SD card 
 name = "name"
 code = "code"
+ssidmem = [] #Getting the array ssid mem for the data of the wifi host name 
 country = [{name: 'Afghanistan', code: 'AF'}, 
   {name: 'Åland Islands', code: 'AX'}, 
   {name: 'Albania', code: 'AL'}, 
@@ -268,14 +273,50 @@ country = [{name: 'Afghanistan', code: 'AF'},
   {name: 'Zimbabwe', code: 'ZW'} 
 ]
 selectedcountry = [] #Getting the selected country 
-class MainWindow(QtWidgets.QMainWindow):
+os_list = ['Linux ubuntu x64 x86','Linux Debian x64 x86','Linux ubuntu arm 32','Linux ubuntu arm 64'] #The list of the operaring system on the system 
+osmem = []
+#Password = "Rkj3548123" #Find the way to popup and get the password using this part as login into the system 
+os.system("echo Hello"+"\t"+str(username)) #Getting the host name 
+parent_dir = "/home/"+username+"/"
+directory = ["Wifi_devices_connects","Robotics_nodes_json"]
+# running the loop of make directory 
+for dric in range(0,len(directory)):
+   try:
+      print("Now creating.....",str(directory[dric])) #Getting the directory created for the wifi config and robotics nodes json  
+      path = os.path.join(parent_dir, directory[dric]) 
+      os.mkdir(path) #Make the path file for the wifi device connection data for choosing on the firmware devices generator
+   except:
+       print(directory[dric]+" directory  was created")
+nodelist = os.listdir(os.path.join(parent_dir,directory[1]))  #getting the list of the robotics node json 
+nodelist.append(" ")
+storage_path = "/media/"+username  
+generic_storage = os.listdir(storage_path) #Getting the list of the storate path 
+generic_mem = []
+generic_mem.append(" ")
+generic_mem.append("Generic storage"+str(generic_storage))
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+#Getting the device name of the host 
+devices = subprocess.check_output("arp -a",shell=True)
+extract_devices = devices.decode('utf-8')
+#print(extract_devices.split("wlo1"))
+devices_list = extract_devices.split("wlo1")
+hostname_mem = [] #Getting the list of the devices host name 
+hostip_mem = [] #Getting the list of the devices host ip 
+automateip_add = {}
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #Getting the wifi of the host 
+wifi_mem = []
 
+
+
+class MainWindow(QtWidgets.QMainWindow):
+   
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         #Load the UI Page
         uic.loadUi('Roboticfirmwaregenerator.ui', self)
-        self.setWindowTitle('Robotics firmware generator')
+        self.setWindowTitle('Robotics firmware generator  User:'+"\t"+username)
         p = self.palette()
         p.setColor(self.backgroundRole(), QtCore.Qt.darkGray)
         self.setPalette(p)
@@ -283,24 +324,90 @@ class MainWindow(QtWidgets.QMainWindow):
         #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..
               #Set of commbobox selection function 
         self.combo1 = self.findChild(QComboBox, "comboBox")
-        self.combo2 = self.findChild(QComboBox,"combBox_2")
+        self.combo2 = self.findChild(QComboBox,"comboBox_2")
         self.combo3 = self.findChild(QComboBox,"comboBox_3")
         self.combo4 = self.findChild(QComboBox, "comboBox_4")
         self.combo5 = self.findChild(QComboBox,"comboBox_5")
+        self.combo7 = self.findChild(QComboBox,"comboBox_7")
         self.combo1.activated.connect(self.Operatingsystem)
+        self.combo1.addItems(os_list)
+        self.combo2.activated.connect(self.Storage_generic)
+        self.combo2.addItems(generic_mem)
+        self.combo3.activated.connect(self.robotnodes)
+        self.combo3.addItems(nodelist) #Getting the robotics node json file 
         self.combo5.activated.connect(self.countrychoose)  #Getting the data from the list dictionary countr to display on the combobox 
         for countries in range(0,len(country)):
                        print(country[countries])
                        dict_cc[country[countries].get('name')] = country[countries].get('code')
         print(dict_cc)
-        self.combo5.addItems(list(dict_cc))  #Adding the country into the list item of the combobox 
-                  
+        self.combo5.addItems(list(dict_cc))  #Adding the country into the list item of the combobox
+        self.combo4.activated.connect(self.hostname_data)
+        for ri in range(0,len(devices_list)-1):
+            print(devices_list[ri].split(" "))
+            origin_list = devices_list[ri].split(" ")[0]
+            getdatahost = devices_list[ri].split(" ")[1]
+            gethostip = getdatahost.split("(")[1].split(")")[0]
+            print(origin_list,getdatahost.split("(")[1].split(")")[0])
+            hostname_mem.append(origin_list) #Get the hostname of the devices 
+            #hostip_mem.append(gethostip) #Get the host ip of the devices 
+            automateip_add[origin_list] = gethostip #Getting the autolist of the ip address 
+        self.combo4.addItems(hostname_mem)#Getting the host mem data into the combo box  
+        #self.combo6.addItems(hostip_mem) #Getting the ip address of the host target selected
+        print(automateip_add)
+        self.combo7.activated.connect(self.wifissid)
+        for wifi_R in range(0,1):
+                     getwifi = subprocess.check_output("nmcli dev wifi",shell=True) 
+                     dataframe = getwifi.decode('utf-8')
+                     #print(type(dataframe))
+                     #print(dataframe)
+                     file = open("currentwifi.csv",'w')
+                     file.write(dataframe)
+                     file.close()
+                     #df = pandas.DataFrame(dataframe, columns=['SSID', 'SIGNAL'])
+                     df = pd.read_csv('currentwifi.csv')
+                     #print("Reading the saving current available wifi")
+                     print(df)
+                     index = df.index
+                     print(index)
+                     listdata = list(df.columns.values)
+                     print(listdata)
+                     print(listdata[0].split(" ")) #recreate the columns separate from one big column
+                     print(df[listdata[0]].values[0])
+                     print(len(index))
+                     for wifi in range(0,len(index)-1):
+                             getting_str =  df[listdata[0]].values[wifi].split(" ") #split the wifi data to get the wifi name and signal strength to choosing the best connection 
+                             print(getting_str[10])
+                             if len(wifi_mem) < len(index):
+                                           wifi_mem.append(getting_str[10]) #getting the mem wifi name 
+                             if len(wifi_mem) > len(index):
+                                   terminal = len(wifi_mem)-len(index)
+                                   for wifilist in range(len(index),terminal):
+                                             wifi_mem.remove(wifi_mem[wifilist]) #remove the len of the index if the length is over 
+                     self.combo7.addItems([" "]) #Getting the blank list on the top to be able to choosing the data in the combobox later 
+                     self.combo7.addItems(wifi_mem) #getting the list of wifi memory
+    def wifissid(self,wifi_index):
+             print(wifi_mem[wifi_index])
+    def hostip_data(self,hostip_index):
+             print(hostip_mem[hostip_index-1])    
+    def hostname_data(self,host_index):
+             print(hostname_mem[host_index]) #Getting the host index
+             print(automateip_add.get(hostname_mem[host_index]))
+             if str(automateip_add.get(hostname_mem[host_index])) not in hostip_mem:
+                       hostip_mem.append(automateip_add.get(hostname_mem[host_index]))
+             if len(hostip_mem) > 1:
+                       hostip_mem.remove(hostip_mem[0])
+
+    def Storage_generic(self,index_storage):
+                print(generic_mem[index_storage])
+    def robotnodes(self,nodes_list):
+                print(nodelist[nodes_list])
     def Operatingsystem(self,osp):
-        if len(OS_name) == []:
-           OS_name.append(osp) #Getting the name of the perating system list mem into the array   
-        if len(OS_name) != [] and len(OS_name) >1:
-           OS_name.remove(OS_name[len(OS_name)-1])
-            
+             print(os_list[osp])
+             if osmem !=[]:
+                   osmem.append(os_list[osp])
+             if len(osmem) > 1:
+                  osmem.remove(osmem[len(osmem)-1]) 
+             print(osmem)    
     def countrychoose(self,countries_cc):
                  #Getting the breviation from key
               try:
@@ -312,6 +419,9 @@ class MainWindow(QtWidgets.QMainWindow):
                  print("Store country breviation successfully....")
               except: 
                    print("Store country breviation error")
+    #def ssidscan(self,index_ssid):
+    #             print("index number",index_ssid)
+    #             print("SSID_name",ssidmem[index_ssid]) #Turn index ssid into the ssid list 
     def Writeimage(self):
             if memwrite ==[]:
                     memwrite.append("Write") #Getting the status write 
@@ -349,11 +459,13 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   filewpa_supplicant.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev")
                                                   filewpa_supplicant.write("update_config=1")
                                                   filewpa_supplicant.write("network={")
-                                                  filewpa_supplicant.write("ssid="+network_name)  #Getting the name of the network from the combobox list SSID password
-                                                  filewpa_supplicant.write("psk="+network_password) #Getting the password from the text input 
+                                                  #filewpa_supplicant.write("ssid="+network_name)  #Getting the name of the network from the combobox list SSID password
+                                                  #filewpa_supplicant.write("psk="+network_password) #Getting the password from the text input 
                                                   filewpa_supplicant.write("}")  
-                                                  #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                                                  print(namenetwork)
 
+                                                  #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                                                  
             #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   
 

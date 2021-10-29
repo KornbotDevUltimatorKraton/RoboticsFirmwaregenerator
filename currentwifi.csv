@@ -1,0 +1,15 @@
+IN-USE  BSSID              SSID                 MODE   CHAN  RATE        SIGNAL  BARS  SECURITY  
+        90:17:3F:B4:A6:20  jornbot-5G           Infra  149   270 Mbit/s  99      ▂▄▆█  WPA1 WPA2 
+        24:4B:FE:38:5E:00  Idatabots            Infra  4     270 Mbit/s  95      ▂▄▆█  WPA2      
+*       24:4B:FE:38:5E:04  Idatabots            Infra  36    270 Mbit/s  92      ▂▄▆█  WPA2      
+        90:17:3F:B4:A6:1C  jornbot-2.4G         Infra  1     130 Mbit/s  75      ▂▄▆_  WPA1 WPA2 
+        0C:45:BA:EE:62:24  true_home2G_SFK      Infra  8     130 Mbit/s  67      ▂▄▆_  WPA2      
+        C2:B8:E6:A3:9D:48  Tun_Family           Infra  4     130 Mbit/s  64      ▂▄▆_  WPA1 WPA2 
+        04:4F:17:0D:F2:ED  BELEAFPRINCESS_2G_1  Infra  2     130 Mbit/s  60      ▂▄▆_  WPA1 WPA2 
+        C2:B8:E6:83:9D:48  Tun_Family_5G        Infra  4     130 Mbit/s  49      ▂▄__  WPA1 WPA2 
+        60:32:B1:D3:06:1E  Tun_Service          Infra  10    270 Mbit/s  45      ▂▄__  WPA2      
+        C0:B8:E6:93:9D:48  Tun_Family_5G        Infra  132   270 Mbit/s  44      ▂▄__  WPA1 WPA2 
+        C2:B8:E6:23:9D:48  Tun_Family           Infra  132   270 Mbit/s  44      ▂▄__  WPA1 WPA2 
+        C2:B8:E6:53:9D:48  --                   Infra  132   270 Mbit/s  44      ▂▄__  WPA1 WPA2 
+        16:11:5D:16:FA:6A  ppanitan_            Infra  161   540 Mbit/s  29      ▂___  WPA1 WPA2 
+        16:11:5D:26:FA:6A  VIP__5G              Infra  161   540 Mbit/s  29      ▂___  WPA1 WPA2 
