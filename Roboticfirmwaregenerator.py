@@ -5,7 +5,7 @@
 #release date:25/2/2020
 from paramiko import SSHClient, AutoAddPolicy # SSH remote command to activate the host machine control
 from PyQt5 import QtCore, QtWidgets, uic,Qt,QtGui 
-from PyQt5.QtWidgets import QApplication,QTreeView,QDirModel,QFileSystemModel,QVBoxLayout, QTreeWidget,QStyledItemDelegate, QTreeWidgetItem,QLabel,QGridLayout,QLineEdit,QDial,QComboBox
+from PyQt5.QtWidgets import QApplication,QTreeView,QDirModel,QFileSystemModel,QVBoxLayout, QTreeWidget,QStyledItemDelegate, QTreeWidgetItem,QLabel,QGridLayout,QLineEdit,QDial,QComboBox,QTextEdit
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap,QIcon,QImage,QPalette,QBrush
 from pyqtgraph.Qt import QtCore, QtGui   #PyQt graph to control the model grphic loaded  
@@ -273,7 +273,7 @@ country = [{name: 'Afghanistan', code: 'AF'},
   {name: 'Zimbabwe', code: 'ZW'} 
 ]
 selectedcountry = [] #Getting the selected country 
-os_list = ['Linux Ubuntu x64 x86','Linux Debian x64 x86','Linux Ubuntu arm 32','Linux Debian arm 32','Linux Ubuntu arm 64','Linux Debian arm 64'] #The list of the operaring system on the system 
+os_list = [' ','Linux Ubuntu x64 x86','Linux Debian x64 x86','Linux Ubuntu arm 32','Linux Debian arm 32','Linux Ubuntu arm 64','Linux Debian arm 64'] #The list of the operaring system on the system 
 osmem = []
 #Password = "Rkj3548123" #Find the way to popup and get the password using this part as login into the system 
 os.system("echo Hello"+"\t"+str(username)) #Getting the host name 
@@ -304,10 +304,12 @@ hostname_mem = [] #Getting the list of the devices host name
 hostip_mem = [] #Getting the list of the devices host ip 
 automateip_add = {}
 hoste_selected =[]
+host_password =[]
+robothostname = []
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #Getting the wifi of the host 
 wifi_mem = []
-
+wifi_password = []
 
 class MainWindow(QtWidgets.QMainWindow):
    
@@ -321,6 +323,7 @@ class MainWindow(QtWidgets.QMainWindow):
         p.setColor(self.backgroundRole(), QtCore.Qt.darkGray)
         self.setPalette(p)
         self.pushButton.clicked.connect(self.Writeimage)
+        self.pushButton_2.clicked.connect(self.Remoteconfig) #Autore mote config 
         #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..
               #Set of commbobox selection function 
         self.combo1 = self.findChild(QComboBox, "comboBox")
@@ -329,13 +332,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo4 = self.findChild(QComboBox, "comboBox_4")
         self.combo5 = self.findChild(QComboBox,"comboBox_5")
         self.combo7 = self.findChild(QComboBox,"comboBox_7")
+        self.text = self.findChild(QTextEdit,"textEdit")     #using the text edit 1 input the ssh text input 
+        self.text3 = self.findChild(QTextEdit,"textEdit_3")  #using the text edit 3 input the password of the host target 
+        self.text4 = self.findChild(QTextEdit,"textEdit_4")  #using the text edit 4 input the wifi password 
+        self.text5 = self.findChild(QTextEdit,"textEdit_5")  #using the text edit 5 input the robot host hame  
         self.combo1.activated.connect(self.Operatingsystem)
         self.combo1.addItems(os_list)
         self.combo2.activated.connect(self.Storage_generic)
         self.combo2.addItems(generic_mem)
         self.combo3.activated.connect(self.robotnodes)
+        self.combo3.addItems([" "])
         self.combo3.addItems(nodelist) #Getting the robotics node json file 
         self.combo5.activated.connect(self.countrychoose)  #Getting the data from the list dictionary countr to display on the combobox 
+        self.text3.toPlainText() 
+        self.text4.toPlainText()
+       
+        print(host_password,wifi_password,robothostname)
         for countries in range(0,len(country)):
                        print(country[countries])
                        dict_cc[country[countries].get('name')] = country[countries].get('code')
@@ -390,8 +402,8 @@ class MainWindow(QtWidgets.QMainWindow):
              print(wifi_mem[wifi_index])
              if len(network_name) < len(wifi_mem):
                    network_name.append(wifi_mem[wifi_index-1])  #Getting the wifi mem on the list of the network name to generate the wifi configuretion on sd card 
-             #if len(network_name) >1:
-             #      network_name.remove(network_name[0]) #remove the network name from the list if out of range 
+             if len(network_name) >1:
+                   network_name.remove(network_name[0]) #remove the network name from the list if out of range 
              print(network_name)      
     def hostip_data(self,hostip_index):
              print(hostip_mem[hostip_index-1])    
@@ -425,10 +437,28 @@ class MainWindow(QtWidgets.QMainWindow):
                  print("Store country breviation successfully....")
               except: 
                    print("Store country breviation error")
-    #def ssidscan(self,index_ssid):
-    #             print("index number",index_ssid)
-    #             print("SSID_name",ssidmem[index_ssid]) #Turn index ssid into the ssid list 
+    def Remoteconfig(self):
+       print("Operating remote config on the robot......") #Operating the remote config of the robot
+       try:     
+           print(robothostname[0],hostip_mem[0],host_password[0])          
+           with SSHClient() as client:
+                     client.set_missing_host_key_policy(AutoAddPolicy())
+                     client.connect(hostname=str(hostip_mem[0]),username=str(robothostname[0]),password=str(host_password[0]),look_for_keys=False) #Getting all the data from the host ip,host_name and the other hostmachine to connect 
+                     command = ["ls","python3","lsusb"]
+                     stdin, stdout, stderr = client.exec_command(command[0])
+                     lines = stdout.readlines()
+                     print(lines)
+                     for drilin in range(0,len(lines)):
+                                print(lines[drilin])
+                                self.text.setText(lines[drilin]+"\n") #Display the plain text of the output ssh data 
+       except: 
+            print("You haven't upload firmware and config to the SD card")
     def Writeimage(self):
+          
+            host_password.append(self.text3.toPlainText()) #Host password for the ssh remote 
+            wifi_password.append(self.text4.toPlainText()) #Network password for the wifi config session
+            robothostname.append(self.text5.toPlainText()) #Robot hostname for the remote operating robot auto configuretion and setting service 
+            print(host_password,wifi_password)
             if memwrite ==[]:
                     memwrite.append("Write") #Getting the status write 
             if len(memwrite) >1:
@@ -439,12 +469,15 @@ class MainWindow(QtWidgets.QMainWindow):
                  #Selecte case of the operating system to upload the firmware into the 
             #This will be using the list combobox to select the SBC type tp choosing the image writer selection capability 
             #Accessing the boot directory of the raspberrypi_boot directory   
-            target_rpi = ["boot","rootfs","pi"]   #Getting the into the directory of the inner file 
+            target_rpi = ["boot","rootfs","pi","system-boot","writable"]   #Getting the into the directory of the inner file 
             #Checking there is boot  
             list_seek_boot = os.listdir(PATH_SD_CARD) #Seeking the target file 
             print("Seek dir",list_seek_boot) #Getting the list seek boot 
+            print(network_name[0])
+            print(wifi_password[0])
             for re in range(0,len(list_seek_boot)):
-                        
+                                      #Raspberrypi 
+                                      # Write on the debian function  condition                       
                                       if list_seek_boot[re] == str(target_rpi[1]):
                                                   print("Found "+str(list_seek_boot[re])+" Now operating firmware injection.......")
                                                   
@@ -461,17 +494,48 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   filewpa_supplicant = open(PATH_SD_CARD+"/"+list_seek_boot[re]+"/"+"wpa_supplicant.conf",'w')
                                                   #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 
                                                   print(selectedcountry)
-                                                  filewpa_supplicant.write("country="+selectedcountry[0]) #Getting the country
-                                                  filewpa_supplicant.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev")
-                                                  filewpa_supplicant.write("update_config=1")
-                                                  filewpa_supplicant.write("network={")
-                                                  filewpa_supplicant.write("ssid="+network_name)  #Getting the name of the network from the combobox list SSID password
-                                                  #filewpa_supplicant.write("psk="+network_password) #Getting the password from the text input 
-                                                  filewpa_supplicant.write("}")  
-                                                  print(namenetwork)
-
+                                                  filewpa_supplicant.write("country="+selectedcountry[0]+"\n") #Getting the country
+                                                  filewpa_supplicant.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"+"\n")
+                                                  filewpa_supplicant.write("update_config=1"+"\n")
+                                                  filewpa_supplicant.write("network={"+"\n")
+                                                  SSIDs = '"' + network_name[0] +'"'
+                                                  SIDpass = '"' + wifi_password[0] + '"'
+                                                  filewpa_supplicant.write("ssid="+SSIDs+"\n")  #Getting the name of the network from the combobox list SSID password
+                                                  filewpa_supplicant.write("psk="+SIDpass+"\n") #Getting the password from the text input 
+                                                  filewpa_supplicant.write("}"+"\n")  
+                                                  filewpa_supplicant.close()
                                                   #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-                                                  
+                                                  #Fix the cmd code 
+                                                  cmdfileconfig = open(PATH_SD_CARD+"/"+list_seek_boot[re]+"/"+"cmdline.txt",'w') 
+                                                  cmdfileconfig.write("root=PARTUUID=f4481065-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet init=/usr/lib/raspi-config/init_resize.sh splash plymouth.ignore-serial-consoles") 
+                                                  cmdfileconfig.close() #Close file after finished writing the configuretion 
+                                                  #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                                                  #Fix the config boot 
+                                                  configfile = open(PATH_SD_CARD+"/"+list_seek_boot[re]+"/"+"config.txt",'w') 
+                                                  configfile.write("#Uncomment some or all of these to enable the optional hardware interfaces")
+                                                  configfile.write("dtparam=i2c_arm=on"+"\n")
+                                                  configfile.write("#dtparam=i2s=on"+"\n")
+                                                  configfile.write("dtparam=spi=on"+"\n")
+                                                  configfile.write("dtparam=audio=on"+"\n")
+                                                  configfile.write("[pi4]"+"\n")
+                                                  configfile.write("#Enable DRM VC4 V3D driver on top of the dispmanx display stack"+"\n")
+                                                  configfile.write("dtoverlay=vc4-fkms-v3d"+"\n")
+                                                  configfile.write("max_framebuffers=2"+"\n")
+                                                  configfile.write("[all]"+"\n")
+                                                  configfile.write("#dtoverlay=vc4-fkms-v3d"+"\n")
+                                                  configfile.write("start_x=1"+"\n")
+                                                  configfile.write("gpu_mem=128"+"\n")
+                                                  congigfile.write("enable_uart=1"+"\n")
+                                                  configfile.close() #Close the file writer after finish writing 
+                                                  #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                                      if list_seek_boot[re] == str(target_rpi[2]): #Getting the rpi inject firmware 
+                                                   #Getting the injection firmware into the robotics sd card and remote operate the firmware to running at boot
+                                                   print("system-boot",list_seek_boot[re])
+                                                   
+
+                                      #Write on the ubuntu function condition 
+                                      if list_seek_boot[re] == str(target_rpi[2]):                                
+                                                   print("writable",list_seek_boot[re])
             #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   
 
