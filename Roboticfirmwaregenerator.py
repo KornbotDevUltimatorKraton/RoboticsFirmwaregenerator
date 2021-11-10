@@ -5,7 +5,7 @@
 #release date:25/2/2020
 from paramiko import SSHClient, AutoAddPolicy # SSH remote command to activate the host machine control
 from PyQt5 import QtCore, QtWidgets, uic,Qt,QtGui 
-from PyQt5.QtWidgets import QApplication,QTreeView,QDirModel,QFileSystemModel,QVBoxLayout, QTreeWidget,QStyledItemDelegate, QTreeWidgetItem,QLabel,QGridLayout,QLineEdit,QDial,QComboBox,QTextEdit
+from PyQt5.QtWidgets import QApplication,QTreeView,QDirModel,QFileSystemModel,QVBoxLayout, QTreeWidget,QStyledItemDelegate, QTreeWidgetItem,QLabel,QGridLayout,QLineEdit,QDial,QComboBox,QTextEdit,QTabWidget
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap,QIcon,QImage,QPalette,QBrush
 from pyqtgraph.Qt import QtCore, QtGui   #PyQt graph to control the model grphic loaded  
@@ -17,7 +17,10 @@ import os
 import sys 
 import json #Reading the json file from the input nodes 
 import getpass
-import pywifi 
+import pywifi
+import requests #Getting the request data from the bash script file to generate the installer file inject into the sd card 
+import socket #Socket for scanning the host ip in the localnetworking   
+import multiprocessing
 memwrite = [] #Getting the status of the writing process 
 OS_name = [] #Getting the operating system choosing for uploadinto the robot
 network_name = []
@@ -305,11 +308,20 @@ hostip_mem = [] #Getting the list of the devices host ip
 automateip_add = {}
 hoste_selected =[]
 host_password =[]
+host_remote = [] #getting the remote host 
 robothostname = []
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #Getting the wifi of the host 
 wifi_mem = []
 wifi_password = []
+
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #Targetting command including firmware installation start and stop services and generate the config of the start at boot function 
+command_exec = ["roboreactorfirmware.sh","./roboreactorfirmware.sh","sudo service supervisorctl start","sudo service supervisor stop","sudo supervisorctl reread","sudo service supervisor restart"]   #Command to activate the service automaticly and accessing the data inside the singleboard computer via ssh  
+r = requests.get('https://raw.githubusercontent.com/KornbotDevUltimatorKraton/Firmwareoflaptop/main/FirmwareNongpuserver.sh')
+firmware = requests.get('https://raw.githubusercontent.com/KornbotDevUltimatorKraton/Firmwareoflaptop/main/FirmwareNongpuserver.sh')
+
+
 
 class MainWindow(QtWidgets.QMainWindow):
    
@@ -318,13 +330,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         #Load the UI Page
         uic.loadUi('Roboticfirmwaregenerator.ui', self)
-        self.setWindowTitle('Robotics firmware generator  User:'+"\t"+username)
+        self.setWindowTitle('Roboreactor firmware generator  User:'+"\t"+username)
         p = self.palette()
         p.setColor(self.backgroundRole(), QtCore.Qt.darkGray)
         self.setPalette(p)
         self.pushButton.clicked.connect(self.Writeimage)
         self.pushButton_2.clicked.connect(self.Remoteconfig) #Autore mote config 
-        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..
+        self.pushButton_3.clicked.connect(self.Start_remote_robot) #Start remote robot  
+        self.pushButton_4.clicked.connect(self.Stop_remote_robot)  #Stop remote robot 
+        self.pushButton_5.clicked.connect(self.Scan_host_machine) #Scan robot host
+        self.pushButton_6.clicked.connect(self.Scan_wifi) #Scan wifi 
+
+        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        #self.labelcam = self.findChild(QLabel,'label_5')
               #Set of commbobox selection function 
         self.combo1 = self.findChild(QComboBox, "comboBox")
         self.combo2 = self.findChild(QComboBox,"comboBox_2")
@@ -332,10 +350,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo4 = self.findChild(QComboBox, "comboBox_4")
         self.combo5 = self.findChild(QComboBox,"comboBox_5")
         self.combo7 = self.findChild(QComboBox,"comboBox_7")
-        self.text = self.findChild(QTextEdit,"textEdit")     #using the text edit 1 input the ssh text input 
+
+              #Text combonent 
+        self.text6= self.findChild(QTextEdit,"textEdit_6")  #using the text edit 1 input the ssh text input  
         self.text3 = self.findChild(QTextEdit,"textEdit_3")  #using the text edit 3 input the password of the host target 
         self.text4 = self.findChild(QTextEdit,"textEdit_4")  #using the text edit 4 input the wifi password 
-        self.text5 = self.findChild(QTextEdit,"textEdit_5")  #using the text edit 5 input the robot host hame  
+        self.text5 = self.findChild(QTextEdit,"textEdit_5")  #using the text edit 5 input the robot host hame 
+             #Tab widget 
+        self.tabwidget = self.findChild(QTabWidget,'tabWidget')  #using the TabWidget for the tab change the function
+        self.cameras = self.findChild(QWidget,'Camera') #Getting the camera input mode 
+        self.nodes_robot = self.findChild(QWidget,'nodes') #Getting the nodes input mode for nodes view data 
+        
+        #self.labelcam.setText("This is the first tab")
+        #self.cameras.layout.addLayout(self.labelcam)
+        #self.cameras.setLayout(self.cameras.layout)
+        #self.tabWidget.addTab(,"Camera")
+              #progressbard function   
+        self.progress = self.findChild(QProgressBar,'progressBar') #using progress bar 
+        self.progress.setMinimum(0)
+        #Getting the maximum value input in dyanmics variant from the process feedback from the socket api communicate with the robotics host 
+        self.progress.setMaximum(100) #Getting the number of the maximum value
+        self.progress.setValue(0) #Move this progressbar into the function of the rest api feedback 
+        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            #Action combolist function 
         self.combo1.activated.connect(self.Operatingsystem)
         self.combo1.addItems(os_list)
         self.combo2.activated.connect(self.Storage_generic)
@@ -344,8 +381,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo3.addItems([" "])
         self.combo3.addItems(nodelist) #Getting the robotics node json file 
         self.combo5.activated.connect(self.countrychoose)  #Getting the data from the list dictionary countr to display on the combobox 
-        self.text3.toPlainText() 
-        self.text4.toPlainText()
+        
        
         print(host_password,wifi_password,robothostname)
         for countries in range(0,len(country)):
@@ -354,6 +390,18 @@ class MainWindow(QtWidgets.QMainWindow):
         print(dict_cc)
         self.combo5.addItems(list(dict_cc))  #Adding the country into the list item of the combobox
         self.combo4.activated.connect(self.hostname_data)
+        print("Start scanning the host machine") #
+        lst = map_network()
+        print(lst)
+        try:
+              #automateip_add.clear()
+              for r in range(0,len(lst)):
+                   host = socket.gethostbyaddr(lst[r])
+                   print(host[0],host[2])
+                   automateip_add[host[0]] = host[2] #create the new list of the host scanner  
+                   #Fixed the unscannable issue now able to scanning at instance scanning mode 
+        except:
+               print("Unknown host")
         for ri in range(0,len(devices_list)-1):
             print(devices_list[ri].split(" "))
             origin_list = devices_list[ri].split(" ")[0]
@@ -361,12 +409,12 @@ class MainWindow(QtWidgets.QMainWindow):
             gethostip = getdatahost.split("(")[1].split(")")[0]
             print(origin_list,getdatahost.split("(")[1].split(")")[0])
             hostname_mem.append(origin_list) #Get the hostname of the devices 
-            #hostip_mem.append(gethostip) #Get the host ip of the devices 
-            automateip_add[origin_list] = gethostip #Getting the autolist of the ip address 
+            automateip_add[origin_list] = gethostip #Getting the autolist of the ip address  #Create the automate list update 
         self.combo4.addItems(hostname_mem)#Getting the host mem data into the combo box  
         #self.combo6.addItems(hostip_mem) #Getting the ip address of the host target selected
         print(automateip_add)
         self.combo7.activated.connect(self.wifissid)
+        
         for wifi_R in range(0,1):
                      getwifi = subprocess.check_output("nmcli dev wifi",shell=True) 
                      dataframe = getwifi.decode('utf-8')
@@ -398,6 +446,8 @@ class MainWindow(QtWidgets.QMainWindow):
                      self.combo7.addItems([" "]) #Getting the blank list on the top to be able to choosing the data in the combobox later 
                      self.combo7.addItems(wifi_mem) #getting the list of wifi memory
                      print(wifi_mem)
+       
+             
     def wifissid(self,wifi_index):
              print(wifi_mem[wifi_index])
              if len(network_name) < len(wifi_mem):
@@ -439,25 +489,104 @@ class MainWindow(QtWidgets.QMainWindow):
                    print("Store country breviation error")
     def Remoteconfig(self):
        print("Operating remote config on the robot......") #Operating the remote config of the robot
+       if len(robothostname) <=0:
+                    robothostname.append(self.text5.toPlainText()) #Robot hostname for the remote operating robot auto configuretion and setting service 
+       if len(robothostname) >1:
+                    robothostname.remove(robothostname[0])
+       if len(host_password) <=0:
+                 host_password.append(self.text3.toPlainText()) #Host password for the ssh remote 
+       if len(host_password) >1:
+                 host_password.remove(host_password[0])
        try:     
            print(robothostname[0],hostip_mem[0],host_password[0])          
            with SSHClient() as client:
                      client.set_missing_host_key_policy(AutoAddPolicy())
+                     print(robothostname)
+                     print(hostip_mem[0],robothostname[0],host_password[0])
                      client.connect(hostname=str(hostip_mem[0]),username=str(robothostname[0]),password=str(host_password[0]),look_for_keys=False) #Getting all the data from the host ip,host_name and the other hostmachine to connect 
-                     command = ["ls","python3","lsusb"]
-                     stdin, stdout, stderr = client.exec_command(command[0])
-                     lines = stdout.readlines()
-                     print(lines)
-                     for drilin in range(0,len(lines)):
-                                print(lines[drilin])
-                                self.text.setText(lines[drilin]+"\n") #Display the plain text of the output ssh data 
+                     command = ["ls","python3 wifiscanner.py","lsusb"]
+                     #Access remote command with sodo combine password generated working 
+                     #Fix your host password into the remote machine password
+                     try:
+                         print("Remote chmod permission")
+                         stdin, stdout, stderr = client.exec_command("sudo -S <<< " +str(host_password[0])+" chmod +x "+command_exec[0],get_pty=True)
+                         lines = stdout.readlines()
+                         print(lines)
+                         #Messagebox here to display the progress bar 
+                        
+                         msgbox = QtWidgets.QMessageBox()
+                         msgbox.setText('Finish robogenerator firmware generated')
+                         msgbox.setTextInteractionFlags(QtCore.Qt.NoTextInteraction) # (QtCore.Qt.TextSelectableByMouse)
+                         stdin, stdout, stderr = client.exec_command(command[0],get_pty=True)
+                         lines = stdout.readlines()
+                         for dataremote in range(0,len(lines)):   
+                              msgbox.setDetailedText(lines[dataremote]+"\n")
+                         msgbox.exec() 
+                        
+                     except:
+                         print("Remote chmod permission fail")
+                     
        except: 
             print("You haven't upload firmware and config to the SD card")
+    def Scan_wifi(self): #Button input function for the wifi scanning 
+           #Input the 1 loop wifi scanner here to operating at search mode 
+           print('Mapping wifi") #Start mapping wifi')  
+           for wifi_R in range(0,1):
+                     getwifi = subprocess.check_output("nmcli dev wifi",shell=True) 
+                     dataframe = getwifi.decode('utf-8')
+                     #print(type(dataframe))
+                     #print(dataframe)
+                     file = open("currentwifi.csv",'w')
+                     file.write(dataframe)
+                     file.close()
+                     #df = pandas.DataFrame(dataframe, columns=['SSID', 'SIGNAL'])
+                     df = pd.read_csv('currentwifi.csv')
+                     #print("Reading the saving current available wifi")
+                     print(df)
+                     index = df.index
+                     print(index)
+                     listdata = list(df.columns.values)
+                     print(listdata)
+                     print(listdata[0].split(" ")) #recreate the columns separate from one big column
+                     print(df[listdata[0]].values[0])
+                     print(len(index))
+                     for wifi in range(0,len(index)-1):
+                             getting_str =  df[listdata[0]].values[wifi].split(" ") #split the wifi data to get the wifi name and signal strength to choosing the best connection 
+                             print(getting_str[10])
+                             if len(wifi_mem) < len(index):
+                                           wifi_mem.append(getting_str[10]) #getting the mem wifi name 
+                             if len(wifi_mem) > len(index):
+                                   terminal = len(wifi_mem)-len(index)
+                                   for wifilist in range(len(index),terminal):
+                                             wifi_mem.remove(wifi_mem[wifilist]) #remove the len of the index if the length is over 
+                             self.progress.setValue((wifi/(len(wifi_mem)-1))*100) # Testing the progressbar using the scanning process of the wifi 
+    def Start_remote_robot(self): 
+           #Start the service robot to operating at boot 
+           print("Start service robot to operating at boot services")
+    def Stop_remote_robot(self):
+           #Stop the service robot to operating at boot 
+           print("Stop service robot to operating at boot services")
+    def Scan_host_machine(self):
+           #Scan the hostmachine 
+           print("Start scanning the host machine") #
+           lst = map_network()
+           print(lst)
+           try:
+              #automateip_add.clear()
+              for r in range(0,len(lst)):
+                   host = socket.gethostbyaddr(lst[r])
+                   print(host[0],host[2])
+                   automateip_add[host[0]] = host[2] #create the new list of the host scanner  
+                   #Fixed the unscannable issue now able to scanning at instance scanning mode 
+           except:
+               print("Unknown host")
     def Writeimage(self):
-          
-            host_password.append(self.text3.toPlainText()) #Host password for the ssh remote 
-            wifi_password.append(self.text4.toPlainText()) #Network password for the wifi config session
-            robothostname.append(self.text5.toPlainText()) #Robot hostname for the remote operating robot auto configuretion and setting service 
+           
+            if len(wifi_password) <=0:
+                     wifi_password.append(self.text4.toPlainText()) #Network password for the wifi config session
+            if len(wifi_password) >1:
+                     wifi_password.remove(wifi_password[0]) #remove the first password from the list
+
             print(host_password,wifi_password)
             if memwrite ==[]:
                     memwrite.append("Write") #Getting the status write 
@@ -469,19 +598,23 @@ class MainWindow(QtWidgets.QMainWindow):
                  #Selecte case of the operating system to upload the firmware into the 
             #This will be using the list combobox to select the SBC type tp choosing the image writer selection capability 
             #Accessing the boot directory of the raspberrypi_boot directory   
-            target_rpi = ["boot","rootfs","pi","system-boot","writable"]   #Getting the into the directory of the inner file 
+            target_rpi = ["boot","rootfs","/home/pi","system-boot","writable"]   #Getting the into the directory of the inner file 
             #Checking there is boot  
             list_seek_boot = os.listdir(PATH_SD_CARD) #Seeking the target file 
             print("Seek dir",list_seek_boot) #Getting the list seek boot 
             print(network_name[0])
             print(wifi_password[0])
             for re in range(0,len(list_seek_boot)):
+                                      #Single Board computer will be choosing from the existing nodes json data to choosing the data from the websize api connecting with the back end 
+                        
                                       #Raspberrypi 
-                                      # Write on the debian function  condition                       
+                                      # Write on the rpi debian function  condition                       
                                       if list_seek_boot[re] == str(target_rpi[1]):
                                                   print("Found "+str(list_seek_boot[re])+" Now operating firmware injection.......")
-                                                  
-                                                  
+                                                  bashwriter = open(PATH_SD_CARD+"/"+list_seek_boot[re]+target_rpi[2]+"/"+"roboreactorfirmware.sh",'w') #Write the firmware directly into the SD card host
+                                                  bashwriter.write(r.text) #Getting data inject into the sd card write directly into the user directory and create the file 
+                                                  bashwriter.close() 
+                                                  #os.system("sudo -S <<< "+str(host_password[0]) +" chmod +x "+PATH_SD_CARD+"/"+list_seek_boot[re]+target_rpi[2]+"/"+"roboreactorfirmware.sh")
                                       if list_seek_boot[re] == str(target_rpi[0]):
                                                   print("Found "+str(list_seek_boot[re])+" Now operating setting SSH and WiFi.......")
                                                   #Writing the file into the path
@@ -502,6 +635,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   SIDpass = '"' + wifi_password[0] + '"'
                                                   filewpa_supplicant.write("ssid="+SSIDs+"\n")  #Getting the name of the network from the combobox list SSID password
                                                   filewpa_supplicant.write("psk="+SIDpass+"\n") #Getting the password from the text input 
+                                                  filewpa_supplicant.write("key_mgmt=WPA-PSK"+"\n") #Getting key wpa 
                                                   filewpa_supplicant.write("}"+"\n")  
                                                   filewpa_supplicant.close()
                                                   #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -525,19 +659,96 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   configfile.write("#dtoverlay=vc4-fkms-v3d"+"\n")
                                                   configfile.write("start_x=1"+"\n")
                                                   configfile.write("gpu_mem=128"+"\n")
-                                                  congigfile.write("enable_uart=1"+"\n")
+                                                  configfile.write("enable_uart=1"+"\n")
                                                   configfile.close() #Close the file writer after finish writing 
+
                                                   #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-                                      if list_seek_boot[re] == str(target_rpi[2]): #Getting the rpi inject firmware 
-                                                   #Getting the injection firmware into the robotics sd card and remote operate the firmware to running at boot
-                                                   print("system-boot",list_seek_boot[re])
+                                    
+                                      #Write on the rpi ubuntu function condition 
+                                      if list_seek_boot[re] == str(target_rpi[3]):                                
+                                                   print("system-boot",list_seek_boot[re]) #getting the system boot 
                                                    
 
-                                      #Write on the ubuntu function condition 
-                                      if list_seek_boot[re] == str(target_rpi[2]):                                
-                                                   print("writable",list_seek_boot[re])
+                                      if list_seek_boot[re] == str(target_rpi[4]):
+                                                   print("writable",list_seek_boot[re]) #getting the system writable directory to inject the firmware on the system to run 
+
+
             #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  
+#Scan host devices name in the local network 
+def pinger(job_q, results_q):
+    """
+    Do Ping
+    :param job_q:
+    :param results_q:
+    :return:
+    """
+    DEVNULL = open(os.devnull, 'w')
+    while True:
+
+        ip = job_q.get()
+
+        if ip is None:
+            break
+
+        try:
+            subprocess.check_call(['ping', '-c1', ip],
+                                  stdout=DEVNULL)
+            results_q.put(ip)
+        except:
+            pass
+
+
+def get_my_ip():
+    """
+    Find my IP address
+    :return:
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
+
+def map_network(pool_size=255):
+    """
+    Maps the network
+    :param pool_size: amount of parallel ping processes
+    :return: list of valid ip addresses
+    """
+
+    ip_list = list()
+
+    # get my IP and compose a base like 192.168.1.xxx
+    ip_parts = get_my_ip().split('.')
+    base_ip = ip_parts[0] + '.' + ip_parts[1] + '.' + ip_parts[2] + '.'
+
+    # prepare the jobs queue
+    jobs = multiprocessing.Queue()
+    results = multiprocessing.Queue()
+
+    pool = [multiprocessing.Process(target=pinger, args=(jobs, results)) for i in range(pool_size)]
+
+    for p in pool:
+        p.start()
+
+    # cue hte ping processes
+    for i in range(1, 255):
+        jobs.put(base_ip + '{0}'.format(i))
+
+    for p in pool:
+        jobs.put(None)
+
+    for p in pool:
+        p.join()
+
+    # collect he results
+    while not results.empty():
+        ip = results.get()
+        ip_list.append(ip)
+
+    return ip_list
+
 
         
 
